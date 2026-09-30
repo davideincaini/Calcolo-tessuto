@@ -1,0 +1,3 @@
+# Dipendenze Python del repo (non servono alla PWA, che è solo HTML/JS/CSS).
+sv-ttk>=2.6     # tema Sun Valley per l'editor tkinter
+pytest>=8.0     # test dei calcoli e del database

@@ -1,0 +1,17 @@
+{
+  "name": "Trama, tessuti in carbonio",
+  "short_name": "Trama",
+  "description": "Grammatura, fili/cm, armatura e confronto di tessuti in fibra di carbonio.",
+  "lang": "it",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F6F4",
+  "theme_color": "#F5F6F4",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

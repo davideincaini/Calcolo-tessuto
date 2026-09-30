@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <!-- viewport-fit=cover: la pagina usa tutto lo schermo dell'iPhone (anche sotto
+       notch e barra Home); le aree protette sono gestite in CSS con env(safe-area-inset-*). -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#F5F6F4">
+
+  <!-- Meta specifici di iOS: senza questi, "Aggiungi a Home" apre Safari con
+       la barra degli indirizzi invece di un'app a schermo intero. -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Trama">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+  <!-- Percorsi RELATIVI ovunque: su GitHub Pages l'app vive in
+       https://utente.github.io/nome-repo/, non nella radice del dominio. -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <title>Trama</title>
+</head>
+<body>
+  <header class="top">
+    <h1>Trama</h1>
+    <p class="sub" id="view-sub">Grammatura, fili/cm e armatura di tessuti in fibra di carbonio</p>
+  </header>
+
+  <main>
+    <!-- ================================================================ -->
+    <!-- Vista 1: Calcolo                                                   -->
+    <!-- ================================================================ -->
+    <section class="view" id="view-calc" aria-label="Calcolo">
+      <!-- Anteprima: il tessuto disegnato in scala con l'armatura scelta. -->
+      <section class="preview" aria-label="Anteprima del tessuto">
+        <figure class="weave-figure">
+          <svg id="weave" viewBox="0 0 320 320" role="img" aria-labelledby="weave-caption"></svg>
+          <figcaption id="weave-caption"></figcaption>
+        </figure>
+        <dl class="kpis">
+          <div class="kpi"><dt>Fili/cm, ordito × trama</dt><dd id="k-n">—</dd></div>
+          <div class="kpi"><dt id="k-faw-label">Grammatura, g/m²</dt><dd id="k-faw">—</dd></div>
+          <div class="kpi"><dt>Passo = larghezza richiesta, mm</dt><dd id="k-w">—</dd></div>
+        </dl>
+        <p id="error" class="error" role="alert" hidden></p>
+      </section>
+
+      <section class="group" aria-labelledby="g-armatura">
+        <h2 id="g-armatura">Armatura</h2>
+        <!-- I pulsanti sono generati da app.js a partire da FabricCalc.WEAVES:
+             aggiungere un'armatura in calc.js la fa comparire anche qui. -->
+        <div class="weave-picker" id="weave-picker" role="radiogroup" aria-label="Armatura"></div>
+        <p class="hint" id="weave-note"></p>
+      </section>
+
+      <section class="group" aria-labelledby="g-filato">
+        <h2 id="g-filato">Filato</h2>
+        <div class="rows">
+          <label class="row"><span class="row-label">Fornitore</span><select id="warp-supplier"></select></label>
+          <label class="row"><span class="row-label">Filato</span><select id="warp-fiber"></select></label>
+        </div>
+        <div class="fiber-info" id="warp-info"></div>
+
+        <label class="switch-row">
+          <input type="checkbox" id="weft-different">
+          <span>Trama con un filato diverso</span>
+        </label>
+        <div id="weft-block" hidden>
+          <div class="rows">
+            <label class="row"><span class="row-label">Fornitore trama</span><select id="weft-supplier"></select></label>
+            <label class="row"><span class="row-label">Filato trama</span><select id="weft-fiber"></select></label>
+          </div>
+          <div class="fiber-info" id="weft-info"></div>
+        </div>
+      </section>
+
+      <section class="group" aria-labelledby="g-tessuto">
+        <h2 id="g-tessuto">Tessuto</h2>
+        <div class="segmented" role="radiogroup" aria-label="Cosa conosci">
+          <input type="radio" name="mode" id="mode-faw" value="faw">
+          <label for="mode-faw">Parto dalla grammatura</label>
+          <input type="radio" name="mode" id="mode-density" value="density">
+          <label for="mode-density">Parto dai fili/cm</label>
+        </div>
+
+        <div class="rows" id="faw-inputs">
+          <label class="row">
+            <span class="row-label">Grammatura di fibra</span>
+            <span class="field"><input id="faw" type="text" inputmode="decimal" autocomplete="off"><span class="unit">g/m²</span></span>
+          </label>
+          <label class="row">
+            <span class="row-label">Quota in massa in ordito</span>
+            <span class="field"><input id="share" type="text" inputmode="decimal" autocomplete="off"><span class="unit">%</span></span>
+          </label>
+        </div>
+
+        <div id="density-inputs" hidden>
+          <div class="rows">
+            <label class="row">
+              <span class="row-label">Ordito</span>
+              <span class="field"><input id="n-warp" type="text" inputmode="decimal" autocomplete="off"><span class="unit">fili/cm</span></span>
+            </label>
+            <label class="row">
+              <span class="row-label">Trama</span>
+              <span class="field"><input id="n-weft" type="text" inputmode="decimal" autocomplete="off"><span class="unit">fili/cm</span></span>
+            </label>
+            <label class="row">
+              <span class="row-label">Grammatura misurata</span>
+              <span class="field"><input id="faw-meas" type="text" inputmode="decimal" autocomplete="off" placeholder="facoltativa"><span class="unit">g/m²</span></span>
+            </label>
+          </div>
+          <p class="hint" id="crimp-implied">Pesa un campione di area nota: con i fili/cm contati, l'app ricava il crimp reale.</p>
+        </div>
+
+        <div class="rows">
+          <label class="row">
+            <span class="row-label">Crimp ordito</span>
+            <span class="field"><input id="crimp-warp" type="text" inputmode="decimal" autocomplete="off"><span class="unit">%</span></span>
+          </label>
+          <label class="row">
+            <span class="row-label">Crimp trama</span>
+            <span class="field"><input id="crimp-weft" type="text" inputmode="decimal" autocomplete="off"><span class="unit">%</span></span>
+          </label>
+          <label class="row">
+            <span class="row-label">Tolleranza sul tex, ±</span>
+            <span class="field"><input id="tex-tol" type="text" inputmode="decimal" autocomplete="off"><span class="unit">%</span></span>
+          </label>
+        </div>
+        <p class="hint">50 % in ordito vuol dire bilanciato in massa. Il crimp dipende da armatura, titolo e densità: non lo stimo dall'armatura, va misurato.</p>
+      </section>
+
+      <section class="group" aria-labelledby="g-risultati">
+        <h2 id="g-risultati">Risultati</h2>
+        <div class="table-wrap">
+          <table class="data" id="result-table">
+            <thead><tr><th scope="col"></th><th scope="col">Ordito</th><th scope="col">Trama</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <dl class="facts" id="fabric-facts"></dl>
+        <div class="note" id="width-note"></div>
+      </section>
+
+      <section class="group" aria-labelledby="g-avanzate">
+        <h2 id="g-avanzate">Filo e laminato</h2>
+        <div class="rows">
+          <label class="row">
+            <span class="row-label">Vf dentro il filo</span>
+            <span class="field"><input id="vf" type="text" inputmode="decimal" autocomplete="off"><span class="unit">&nbsp;</span></span>
+          </label>
+          <label class="row">
+            <span class="row-label">Sezione del filo</span>
+            <select id="shape">
+              <option value="rect">Rettangolare</option>
+              <option value="ellipse">Ellittica</option>
+              <option value="lens">Lenticolare</option>
+            </select>
+          </label>
+          <label class="row">
+            <span class="row-label">Larghezza tow misurata, ordito</span>
+            <span class="field"><input id="w-warp" type="text" inputmode="decimal" autocomplete="off" placeholder="facoltativa"><span class="unit">mm</span></span>
+          </label>
+          <label class="row">
+            <span class="row-label">Larghezza tow misurata, trama</span>
+            <span class="field"><input id="w-weft" type="text" inputmode="decimal" autocomplete="off" placeholder="facoltativa"><span class="unit">mm</span></span>
+          </label>
+          <label class="row">
+            <span class="row-label">Vf del laminato</span>
+            <span class="field"><input id="vf-lam" type="text" inputmode="decimal" autocomplete="off"><span class="unit">&nbsp;</span></span>
+          </label>
+        </div>
+        <p class="hint">La larghezza misurata è l'unico dato che mostra i gap reali: dal solo tex si ricava quanto largo deve diventare il filo, non quanto lo è.</p>
+      </section>
+    </section>
+
+    <!-- ================================================================ -->
+    <!-- Vista 2: Confronto                                                 -->
+    <!-- ================================================================ -->
+    <section class="view" id="view-compare" aria-label="Confronto" hidden>
+      <p class="basis" id="compare-basis"></p>
+      <div class="compare-grid" id="compare-drawings"></div>
+
+      <div class="table-wrap">
+        <table class="data compare" id="compare-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <section class="group" aria-labelledby="g-slots">
+        <h2 id="g-slots">Tessuti a confronto</h2>
+        <div id="slots"></div>
+        <button type="button" class="btn" id="add-slot">Aggiungi un tessuto</button>
+      </section>
+
+      <section class="group" aria-labelledby="g-export">
+        <h2 id="g-export">Esporta</h2>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" id="export-png">Condividi immagine</button>
+          <button type="button" class="btn" id="export-csv">Esporta tabella CSV</button>
+        </div>
+        <p class="form-msg" id="compare-msg" role="status"></p>
+      </section>
+    </section>
+
+    <!-- ================================================================ -->
+    <!-- Vista 3: Filati (database)                                         -->
+    <!-- ================================================================ -->
+    <section class="view" id="view-db" aria-label="Filati" hidden>
+      <p class="hint" id="db-status"></p>
+      <label class="search">
+        <span class="visually-hidden">Cerca un filato</span>
+        <input id="db-search" type="search" placeholder="Cerca: T700S, 12K, Hexcel…" autocomplete="off">
+      </label>
+      <div id="db-list"></div>
+
+      <section class="group" aria-labelledby="g-add">
+        <h2 id="g-add">Filati personali</h2>
+        <details class="add-fiber">
+          <summary>Aggiungi un filato</summary>
+          <form id="add-form" novalidate>
+            <div class="rows">
+              <label class="row"><span class="row-label">Fornitore</span><input id="add-supplier" type="text" list="supplier-list" autocomplete="off" required></label>
+              <label class="row"><span class="row-label">Grado</span><input id="add-grade" type="text" autocomplete="off" placeholder="es. T700S" required></label>
+              <label class="row"><span class="row-label">Filamenti</span><span class="field"><input id="add-k" type="text" inputmode="decimal" autocomplete="off" placeholder="12"><span class="unit">K</span></span></label>
+              <label class="row"><span class="row-label">Titolo</span><span class="field"><input id="add-tex" type="text" inputmode="decimal" autocomplete="off"><span class="unit">tex</span></span></label>
+              <label class="row"><span class="row-label">Densità</span><span class="field"><input id="add-rho" type="text" inputmode="decimal" autocomplete="off"><span class="unit">g/cm³</span></span></label>
+              <label class="row"><span class="row-label">Diametro filamento</span><span class="field"><input id="add-d" type="text" inputmode="decimal" autocomplete="off" placeholder="facoltativo"><span class="unit">µm</span></span></label>
+            </div>
+            <datalist id="supplier-list"></datalist>
+            <button type="submit" class="btn btn-primary">Aggiungi filato</button>
+            <p class="form-msg" id="add-msg" role="status"></p>
+          </form>
+        </details>
+        <ul class="custom-list" id="custom-list"></ul>
+      </section>
+
+      <section class="group" aria-labelledby="g-io">
+        <h2 id="g-io">Database</h2>
+        <div class="actions">
+          <button type="button" class="btn" id="export-db">Esporta database</button>
+          <label class="btn" for="import-db">Importa JSON</label>
+          <input type="file" id="import-db" accept="application/json,.json" class="visually-hidden">
+          <button type="button" class="btn btn-quiet" id="reset-custom">Rimuovi i filati personali</button>
+        </div>
+        <p class="form-msg" id="io-msg" role="status"></p>
+      </section>
+    </section>
+
+    <p class="foot">Valori nominali da schede tecniche, nessuno verificato. Il disegno mostra la geometria in pianta: niente spreading, niente ondulazione reale del filo.</p>
+  </main>
+
+  <!-- Barra delle schede in basso, come nelle app iOS: il pollice ci arriva
+       senza cambiare presa. Sono pulsanti veri (tastiera e VoiceOver). -->
+  <nav class="tabbar" aria-label="Sezioni">
+    <button type="button" class="tab" data-view="calc" aria-controls="view-calc">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 13h7v7h-7z" /><path class="o" d="M13 4h7v7h-7zM4 13h7v7H4z" /></svg>
+      <span>Calcolo</span>
+    </button>
+    <button type="button" class="tab" data-view="compare" aria-controls="view-compare">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path class="o" d="M3 5h8v14H3zM13 5h8v14h-8z" /><path d="M5 8h4M5 11h4M15 8h4M15 11h4" class="l" /></svg>
+      <span>Confronto</span>
+    </button>
+    <button type="button" class="tab" data-view="db" aria-controls="view-db">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse class="o" cx="12" cy="6" rx="7" ry="2.6" /><path class="o" d="M5 6v12c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6" /><path class="l" d="M5 12c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6" /></svg>
+      <span>Filati</span>
+    </button>
+  </nav>
+
+  <!-- Ordine importante: calc.js definisce FabricCalc, app.js lo usa. -->
+  <script src="calc.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
