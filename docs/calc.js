@@ -215,6 +215,16 @@
     return Math.sqrt((4 * areaPerFilament) / Math.PI) * 1000; // µm
   }
 
+  function nativeWidth(tex, rho, phi, shapeK, tNative) {
+    // Larghezza del tow SENZA spreading, stimata dalla sua sezione:
+    //   caso generale   A_tow = k · w · t      (k = fattore di forma)
+    //   con             A_tow = A_f / φ         (φ = impacchettamento dei filamenti)
+    //   ⇒               w₀ = A_f / (φ · k · t₀)
+    // Attenzione: w₀ dipende dal PRODOTTO φ·t₀. Un errore del 10 % su uno dei
+    // due è un errore del 10 % sulla larghezza, e quindi sui gap.
+    return fiberArea(tex, rho) / (phi * shapeK * tNative);
+  }
+
   function fawFromN(n, tex, crimp) {
     // Grammatura portata da UNA direzione con n fili/cm, su 1 m² di tessuto:
     //   100·n fili per metro di larghezza, ognuno lungo (1 + c) m per il crimp,
@@ -242,15 +252,17 @@
     return base > 0 ? (10 * fawMeas) / base - 1 : null;
   }
 
-  function yarnGeometry(tex, rho, n, vfYarn, shapeK, wMeas) {
+  function yarnGeometry(tex, rho, n, vfYarn, shapeK, wMeas, tNative) {
     // Geometria di UN sistema di fili (ordito oppure trama).
     if (!(n > 0)) return null; // direzione assente (es. quota 100 % in ordito)
 
     const af = fiberArea(tex, rho); // mm², sola fibra
-    const ay = af / vfYarn;         // mm², filo con i vuoti tra i filamenti
+    const ay = af / vfYarn;         // mm², tow con i vuoti tra i filamenti (vfYarn = φ)
     const p = pitchMm(n);           // mm
 
-    // Larghezza RICHIESTA per copertura piena: w = p. Dall'area: t = A_filo/(k·p)
+    // Larghezza RICHIESTA per copertura piena: w = p. Dall'area: t = A_tow/(k·p).
+    // È anche lo spessore del tow DOPO uno spreading che chiude i gap
+    // (a parità di φ): serve a capire quanto sottile deve diventare.
     const tReq = ay / (shapeK * p);
 
     const g = {
@@ -261,23 +273,34 @@
       w_req: p,
       t_req: tReq,
       ar_req: p / tReq,
-      w_meas: null,
+      w_tow: null,        // larghezza del tow senza spreading
+      w_source: null,     // "measured" | "estimated" | null
       cover: null,
       gap: null,
-      t_meas: null,
-      ar_meas: null,
+      t_tow: null,
+      ar_tow: null,
       spread_factor: null,
     };
 
-    // Larghezza MISURATA (facoltativa): l'unico modo onesto di sapere quanto è
-    // largo il tow senza spreading (dipende da twist, sizing, tensione, guide).
+    // Da dove viene la larghezza nativa: una misura vince sempre sulla stima.
+    let wTow = null;
     if (wMeas > 0) {
-      g.w_meas = wMeas;
-      g.cover = wMeas / p;              // > 1 = sovrapposizione
-      g.gap = p - wMeas;                // mm; negativo = sovrapposizione
-      g.t_meas = ay / (shapeK * wMeas);
-      g.ar_meas = wMeas / g.t_meas;
-      g.spread_factor = p / wMeas;      // di quanto deve allargarsi per chiudere
+      wTow = wMeas;
+      g.w_source = "measured";
+    } else if (tNative > 0) {
+      wTow = ay / (shapeK * tNative); // = nativeWidth(tex, rho, vfYarn, shapeK, tNative)
+      g.w_source = "estimated";
+    }
+
+    if (wTow !== null) {
+      g.w_tow = wTow;
+      g.cover = wTow / p;              // copertura lineare; > 1 = sovrapposizione
+      g.gap = p - wTow;                // mm; negativo = sovrapposizione
+      g.t_tow = ay / (shapeK * wTow);  // spessore del tow nativo
+      g.ar_tow = wTow / g.t_tow;
+      // Di quante volte va allargato il tow per chiudere il gap: s = p / w₀.
+      // Nota: s = t₀ / t_req, rapporto tra spessore nativo e spessore richiesto.
+      g.spread_factor = p / wTow;
     }
     return g;
   }
@@ -311,7 +334,7 @@
       if (!isPos(y.rho)) return "Densità della fibra di " + label + " mancante.";
     }
     if (!isPos(inp.vf_yarn) || inp.vf_yarn > VF_MAX_HEX) {
-      return "Il Vf nel filo deve stare tra 0 e 0,907 (limite dell'impaccamento esagonale).";
+      return "Il fattore di impacchettamento φ deve stare tra 0 e 90,7 % (limite dell'impaccamento esagonale).";
     }
     if (!isPos(inp.vf_lam) || inp.vf_lam > VF_MAX_HEX) {
       return "Il Vf del laminato deve stare tra 0 e 0,907.";
@@ -394,15 +417,27 @@
     }
 
     const faw = fawWarp + fawWeft;
-    const warp = yarnGeometry(inp.warp.tex, inp.warp.rho, nWarp, inp.vf_yarn, k, inp.w_meas_warp);
-    const weft = yarnGeometry(inp.weft.tex, inp.weft.rho, nWeft, inp.vf_yarn, k, inp.w_meas_weft);
+    const warp = yarnGeometry(inp.warp.tex, inp.warp.rho, nWarp, inp.vf_yarn, k, inp.w_meas_warp, inp.t_native_warp);
+    const weft = yarnGeometry(inp.weft.tex, inp.weft.rho, nWeft, inp.vf_yarn, k, inp.w_meas_weft, inp.t_native_weft);
 
     const st = weaveStats(weaveMatrix(inp.weave));
     addWeaveGeometry(warp, weft, st);
 
     let coverFabric = null;
+    let openArea = null, holesCm2 = null, holeW = null, holeH = null;
     if (warp && weft && warp.cover !== null && weft.cover !== null) {
       coverFabric = fabricCover(warp.cover, weft.cover);
+      // Buchi PASSANTI: esistono solo dove un gap tra orditi incrocia un gap
+      // tra trame. Altrove il gap di una direzione è coperto dai fili
+      // dell'altra (resta però un canale ricco di resina a metà spessore).
+      //   un buco per cella del reticolo ⇒ n_o · n_t buchi/cm²
+      //   dimensione g_o × g_t; area aperta = (g_o/p_o)(g_t/p_t) = (1 − c_o)(1 − c_t)
+      // Vale per ogni armatura: in pianta la posizione dei fili non dipende
+      // da chi sta sopra (lo spostamento reale dei fili non è modellato).
+      holeW = Math.max(warp.gap, 0); // tra due orditi, misurato lungo la trama
+      holeH = Math.max(weft.gap, 0); // tra due trame, misurato lungo l'ordito
+      openArea = (holeW / warp.pitch) * (holeH / weft.pitch);
+      holesCm2 = holeW > 0 && holeH > 0 ? nWarp * nWeft : 0;
     }
 
     // Spessore del ply curato: volume di fibra per m² diviso per il Vf.
@@ -436,6 +471,10 @@
       warp: warp,
       weft: weft,
       cover_fabric: coverFabric,
+      open_area: openArea,     // frazione di superficie passante (0–1)
+      holes_cm2: holesCm2,     // buchi passanti per cm²
+      hole_w: holeW,           // mm, lato del buco lungo la trama
+      hole_h: holeH,           // mm, lato del buco lungo l'ordito
       weave: Object.assign({ id: inp.weave }, st),
       bindings_cm2: bindingsCm2,
       ply_thickness: plyThickness,
@@ -456,6 +495,7 @@
     fiberArea: fiberArea,
     texFromGeometry: texFromGeometry,
     equivalentDiameterUm: equivalentDiameterUm,
+    nativeWidth: nativeWidth,
     fawFromN: fawFromN,
     nFromFaw: nFromFaw,
     pitchMm: pitchMm,

@@ -44,6 +44,11 @@
 
 * { box-sizing: border-box; }
 
+/* L'attributo hidden nasconde con un display:none "debole": qualunque regola
+   con display (es. .row { display: flex }) lo annulla e l'elemento ricompare.
+   Questa riga lo rende vincolante in tutta l'app. */
+[hidden] { display: none !important; }
+
 html {
   /* Impedisce a iOS di ingrandire il testo da solo quando si ruota il telefono. */
   -webkit-text-size-adjust: 100%;
@@ -384,12 +389,6 @@ table.data .sep th, table.data .sep td { padding-top: 14px; }
 
 .basis { margin: 12px 4px 12px; color: var(--ink-2); font-size: 14px; }
 
-.compare-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
-}
 
 .cmp-figure { margin: 0; }
 
@@ -418,7 +417,7 @@ table.data .sep th, table.data .sep td { padding-top: 14px; }
 
 table.compare { font-size: 13px; }
 table.compare th, table.compare td { padding: 8px 10px; }
-table.compare thead th { text-align: right; color: var(--ink); font-weight: 600; }
+table.compare thead th { text-align: right; color: var(--ink); font-weight: 600; white-space: normal; }
 
 /* Con 3-4 tessuti la tabella scorre di lato: la colonna delle etichette resta
    ferma, altrimenti non si capisce più a quale grandezza si riferisce un numero. */
@@ -431,18 +430,55 @@ table.compare th:first-child {
   min-width: 9.5em;
 }
 
-.slot {
-  margin-bottom: 12px;
+
+/* --- Selettore di filato (database oppure valori a mano) ---------------------- */
+
+.picker .fiber-info { margin-top: -4px; }
+.picker-actions { margin: -4px 4px 12px; }
+.sub-h { margin: 4px 0 8px 4px; font-size: 15px; font-weight: 600; }
+
+/* --- Confronto A | B -------------------------------------------------------------
+   Due colonne affiancate anche su iPhone: è il senso del confronto "sinistra-
+   destra". Nelle colonne strette l'etichetta va SOPRA il campo, altrimenti
+   etichetta e menu si contendono 170 px e nessuno dei due si legge. */
+
+.compare-base { margin-top: 12px; }
+
+.duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
-.slot-head {
+/* min-width: 0 serve perché un <select> con testo lungo non allarghi la
+   colonna oltre metà schermo (default dei grid item: min-width auto). */
+.duo-col { min-width: 0; }
+
+.col-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin: 0 4px 6px;
+  margin: 0 4px 8px;
   font-size: 15px;
   font-weight: 600;
 }
+
+.duo-col .row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  min-height: 0;
+  padding: 8px 12px;
+}
+
+.duo-col .row-label { font-size: 12px; color: var(--ink-2); }
+
+.duo-col .row select,
+.duo-col .row input { text-align: left; max-width: 100%; width: 100%; padding: 2px 0; }
+
+.duo-col .field { width: 100%; }
+.duo-col .field input { flex: 1 1 auto; width: auto; min-width: 0; }
+.duo-col .fiber-info { font-size: 12px; }
 
 /* --- Database ----------------------------------------------------------------- */
 

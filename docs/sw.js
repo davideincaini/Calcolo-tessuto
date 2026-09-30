@@ -7,7 +7,7 @@
  *     in reparto senza campo.
  *
  * IMPORTANTE: quando modifichi index.html, app.js, calc.js o styles.css,
- * incrementa CACHE_VERSION (trama-v2-1 → trama-v2-2). Altrimenti gli iPhone
+ * incrementa CACHE_VERSION (es. trama-v2-3 → trama-v2-4). Altrimenti gli iPhone
  * continuano a usare la versione in cache. fibers.json invece non lo richiede
  * (strategia "prima la rete", più sotto).
  *
@@ -19,7 +19,7 @@
  * ===========================================================================*/
 
 const CACHE_PREFIX = "trama-";
-const CACHE_VERSION = CACHE_PREFIX + "v2-1";
+const CACHE_VERSION = CACHE_PREFIX + "v2-3";
 
 // Percorsi relativi alla cartella del service worker: funzionano sia su
 // utente.github.io/repo/ sia in locale.

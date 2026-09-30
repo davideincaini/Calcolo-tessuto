@@ -43,7 +43,7 @@
         <dl class="kpis">
           <div class="kpi"><dt>Fili/cm, ordito × trama</dt><dd id="k-n">—</dd></div>
           <div class="kpi"><dt id="k-faw-label">Grammatura, g/m²</dt><dd id="k-faw">—</dd></div>
-          <div class="kpi"><dt>Passo = larghezza richiesta, mm</dt><dd id="k-w">—</dd></div>
+          <div class="kpi"><dt>Passo tra i fili, mm</dt><dd id="k-w">—</dd></div>
         </dl>
         <p id="error" class="error" role="alert" hidden></p>
       </section>
@@ -58,22 +58,17 @@
 
       <section class="group" aria-labelledby="g-filato">
         <h2 id="g-filato">Filato</h2>
-        <div class="rows">
-          <label class="row"><span class="row-label">Fornitore</span><select id="warp-supplier"></select></label>
-          <label class="row"><span class="row-label">Filato</span><select id="warp-fiber"></select></label>
-        </div>
-        <div class="fiber-info" id="warp-info"></div>
+        <!-- Riempito da app.js: fornitore e filato dal database, oppure
+             "Valori a mano" per un filato che nel database non c'è. -->
+        <div class="picker" id="warp-picker"></div>
 
         <label class="switch-row">
           <input type="checkbox" id="weft-different">
           <span>Trama con un filato diverso</span>
         </label>
         <div id="weft-block" hidden>
-          <div class="rows">
-            <label class="row"><span class="row-label">Fornitore trama</span><select id="weft-supplier"></select></label>
-            <label class="row"><span class="row-label">Filato trama</span><select id="weft-fiber"></select></label>
-          </div>
-          <div class="fiber-info" id="weft-info"></div>
+          <h3 class="sub-h">Filato di trama</h3>
+          <div class="picker" id="weft-picker"></div>
         </div>
       </section>
 
@@ -141,38 +136,33 @@
           </table>
         </div>
         <dl class="facts" id="fabric-facts"></dl>
-        <div class="note" id="width-note"></div>
       </section>
 
-      <section class="group" aria-labelledby="g-avanzate">
-        <h2 id="g-avanzate">Filo e laminato</h2>
+      <section class="group" aria-labelledby="g-spread">
+        <h2 id="g-spread">Buchi e spreading</h2>
         <div class="rows">
           <label class="row">
-            <span class="row-label">Vf dentro il filo</span>
-            <span class="field"><input id="vf" type="text" inputmode="decimal" autocomplete="off"><span class="unit">&nbsp;</span></span>
+            <span class="row-label">Impacchettamento φ</span>
+            <span class="field"><input id="phi" type="text" inputmode="decimal" autocomplete="off"><span class="unit">%</span></span>
           </label>
           <label class="row">
-            <span class="row-label">Sezione del filo</span>
-            <select id="shape">
-              <option value="rect">Rettangolare</option>
-              <option value="ellipse">Ellittica</option>
-              <option value="lens">Lenticolare</option>
-            </select>
+            <span class="row-label" id="t0-warp-label">Spessore nativo del tow</span>
+            <span class="field"><input id="t0-warp" type="text" inputmode="decimal" autocomplete="off"><span class="unit">mm</span></span>
           </label>
-          <label class="row">
-            <span class="row-label">Larghezza tow misurata, ordito</span>
-            <span class="field"><input id="w-warp" type="text" inputmode="decimal" autocomplete="off" placeholder="facoltativa"><span class="unit">mm</span></span>
-          </label>
-          <label class="row">
-            <span class="row-label">Larghezza tow misurata, trama</span>
-            <span class="field"><input id="w-weft" type="text" inputmode="decimal" autocomplete="off" placeholder="facoltativa"><span class="unit">mm</span></span>
-          </label>
-          <label class="row">
-            <span class="row-label">Vf del laminato</span>
-            <span class="field"><input id="vf-lam" type="text" inputmode="decimal" autocomplete="off"><span class="unit">&nbsp;</span></span>
+          <label class="row" id="t0-weft-row" hidden>
+            <span class="row-label">Spessore nativo, trama</span>
+            <span class="field"><input id="t0-weft" type="text" inputmode="decimal" autocomplete="off"><span class="unit">mm</span></span>
           </label>
         </div>
-        <p class="hint">La larghezza misurata è l'unico dato che mostra i gap reali: dal solo tex si ricava quanto largo deve diventare il filo, non quanto lo è.</p>
+        <p class="hint">Larghezza nativa stimata = area di fibra / (φ × spessore). Conta il prodotto dei due: 0,11 mm a φ 80 % corrisponde a un 12K largo circa 5 mm (dato di letteratura); per 3K e 6K non è verificato.</p>
+        <div class="table-wrap">
+          <table class="data" id="spread-table">
+            <thead><tr><th scope="col"></th><th scope="col">Ordito</th><th scope="col">Trama</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <dl class="facts" id="hole-facts"></dl>
+        <div class="note" id="spread-note"></div>
       </section>
     </section>
 
@@ -180,8 +170,51 @@
     <!-- Vista 2: Confronto                                                 -->
     <!-- ================================================================ -->
     <section class="view" id="view-compare" aria-label="Confronto" hidden>
-      <p class="basis" id="compare-basis"></p>
-      <div class="compare-grid" id="compare-drawings"></div>
+      <!-- Base comune: i due tessuti hanno la stessa grammatura e lo stesso
+           crimp, così la differenza che vedi viene solo da filato e armatura. -->
+      <div class="rows compare-base">
+        <label class="row">
+          <span class="row-label">Grammatura di fibra</span>
+          <span class="field"><input id="cmp-faw" type="text" inputmode="decimal" autocomplete="off"><span class="unit">g/m²</span></span>
+        </label>
+        <label class="row">
+          <span class="row-label">Crimp, uguale per entrambi</span>
+          <span class="field"><input id="cmp-crimp" type="text" inputmode="decimal" autocomplete="off"><span class="unit">%</span></span>
+        </label>
+        <label class="row">
+          <span class="row-label">Impacchettamento φ</span>
+          <span class="field"><input id="cmp-phi" type="text" inputmode="decimal" autocomplete="off"><span class="unit">%</span></span>
+        </label>
+      </div>
+
+      <div class="duo">
+        <div class="duo-col" id="col-a">
+          <div class="col-head"><span class="tag">A</span>Sinistra</div>
+          <div class="picker" id="cmp-picker-a"></div>
+          <div class="rows">
+            <label class="row"><span class="row-label">Armatura</span><select id="cmp-weave-a"></select></label>
+            <label class="row">
+              <span class="row-label">Spessore nativo</span>
+              <span class="field"><input id="cmp-t0-a" type="text" inputmode="decimal" autocomplete="off"><span class="unit">mm</span></span>
+            </label>
+          </div>
+        </div>
+        <div class="duo-col" id="col-b">
+          <div class="col-head"><span class="tag">B</span>Destra</div>
+          <div class="picker" id="cmp-picker-b"></div>
+          <div class="rows">
+            <label class="row"><span class="row-label">Armatura</span><select id="cmp-weave-b"></select></label>
+            <label class="row">
+              <span class="row-label">Spessore nativo</span>
+              <span class="field"><input id="cmp-t0-b" type="text" inputmode="decimal" autocomplete="off"><span class="unit">mm</span></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <p id="compare-error" class="error" role="alert" hidden></p>
+      <div class="duo" id="compare-drawings"></div>
+      <p class="hint" id="compare-caption"></p>
 
       <div class="table-wrap">
         <table class="data compare" id="compare-table">
@@ -190,20 +223,11 @@
         </table>
       </div>
 
-      <section class="group" aria-labelledby="g-slots">
-        <h2 id="g-slots">Tessuti a confronto</h2>
-        <div id="slots"></div>
-        <button type="button" class="btn" id="add-slot">Aggiungi un tessuto</button>
-      </section>
-
-      <section class="group" aria-labelledby="g-export">
-        <h2 id="g-export">Esporta</h2>
-        <div class="actions">
-          <button type="button" class="btn btn-primary" id="export-png">Condividi immagine</button>
-          <button type="button" class="btn" id="export-csv">Esporta tabella CSV</button>
-        </div>
-        <p class="form-msg" id="compare-msg" role="status"></p>
-      </section>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" id="export-png">Condividi immagine</button>
+        <button type="button" class="btn" id="export-csv">Esporta tabella CSV</button>
+      </div>
+      <p class="form-msg" id="compare-msg" role="status"></p>
     </section>
 
     <!-- ================================================================ -->
@@ -219,13 +243,14 @@
 
       <section class="group" aria-labelledby="g-add">
         <h2 id="g-add">Filati personali</h2>
+        <p class="hint">Per un calcolo al volo non serve salvare: in Calcolo e in Confronto scegli «Valori a mano» nel menu Fornitore.</p>
         <details class="add-fiber">
           <summary>Aggiungi un filato</summary>
           <form id="add-form" novalidate>
             <div class="rows">
               <label class="row"><span class="row-label">Fornitore</span><input id="add-supplier" type="text" list="supplier-list" autocomplete="off" required></label>
               <label class="row"><span class="row-label">Grado</span><input id="add-grade" type="text" autocomplete="off" placeholder="es. T700S" required></label>
-              <label class="row"><span class="row-label">Filamenti</span><span class="field"><input id="add-k" type="text" inputmode="decimal" autocomplete="off" placeholder="12"><span class="unit">K</span></span></label>
+              <label class="row"><span class="row-label">Filamenti</span><span class="field"><input id="add-k" type="text" autocomplete="off" placeholder="12K o 12000"><span class="unit">&nbsp;</span></span></label>
               <label class="row"><span class="row-label">Titolo</span><span class="field"><input id="add-tex" type="text" inputmode="decimal" autocomplete="off"><span class="unit">tex</span></span></label>
               <label class="row"><span class="row-label">Densità</span><span class="field"><input id="add-rho" type="text" inputmode="decimal" autocomplete="off"><span class="unit">g/cm³</span></span></label>
               <label class="row"><span class="row-label">Diametro filamento</span><span class="field"><input id="add-d" type="text" inputmode="decimal" autocomplete="off" placeholder="facoltativo"><span class="unit">µm</span></span></label>
@@ -250,7 +275,7 @@
       </section>
     </section>
 
-    <p class="foot">Valori nominali da schede tecniche, nessuno verificato. Il disegno mostra la geometria in pianta: niente spreading, niente ondulazione reale del filo.</p>
+    <p class="foot">Valori nominali da schede tecniche, nessuno verificato. Il disegno mostra la geometria in pianta con i tow alla larghezza nativa stimata: in ambra i gap. Niente ondulazione reale del filo, niente appiattimento dovuto alla tessitura.</p>
   </main>
 
   <!-- Barra delle schede in basso, come nelle app iOS: il pollice ci arriva

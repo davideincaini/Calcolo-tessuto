@@ -130,6 +130,66 @@ def test_flottazione_ciclica_scavalca_il_bordo():
     assert C.cyclic_runs([1, 1, 0, 1]) == {"transitions": 2, "max_run": 3}
 
 
+def test_larghezza_nativa_da_phi_e_spessore():
+    # 12K T700 (800 tex, 1,80): tow da ~5 mm in letteratura ⇔ t₀ ≈ 0,11 mm a φ = 0,8.
+    w = C.native_width(800.0, 1.80, 0.8, 1.0, 0.11)
+    assert w == pytest.approx(800 / 1800 / (0.8 * 0.11))  # ≈ 5,05 mm
+    r = C.compute(base_input(warp={"tex": 800.0, "rho": 1.80}, weft={"tex": 800.0, "rho": 1.80},
+                             vf_yarn=0.8, t_native_warp=0.11, t_native_weft=0.11))
+    assert r["warp"]["w_tow"] == pytest.approx(w)
+    assert r["warp"]["w_source"] == "estimated"
+    assert r["warp"]["t_tow"] == pytest.approx(0.11)       # ritorna lo spessore di partenza
+
+
+def test_fattore_di_spreading_e_rapporto_di_spessori():
+    # s = p/w₀ = t₀/t_req: quanto più sottile deve diventare il tow.
+    r = C.compute(base_input(vf_yarn=0.8, t_native_warp=0.15, t_native_weft=0.15))
+    g = r["warp"]
+    assert g["spread_factor"] == pytest.approx(g["pitch"] / g["w_tow"])
+    assert g["spread_factor"] == pytest.approx(0.15 / g["t_req"])
+
+
+def test_a_spessore_nativo_fisso_lo_spreading_non_dipende_dal_tex():
+    # Conseguenza del modello: s = 2000·ρ·φ·(1+c)·t₀ / FAW, senza tex.
+    # A parità di grammatura, 1K e 12K dello stesso grado vanno allargati uguale;
+    # cambia solo la DIMENSIONE dei buchi (∝ passo), non l'area aperta.
+    rho, phi, t0, faw, c = 1.76, 0.8, 0.12, 280.0, 0.01
+    ss, areas, holes = [], [], []
+    for tex in (66.0, 198.0, 396.0, 800.0):
+        r = C.compute(base_input(warp={"tex": tex, "rho": rho}, weft={"tex": tex, "rho": rho},
+                                 vf_yarn=phi, faw_target=faw, crimp_warp=c, crimp_weft=c,
+                                 t_native_warp=t0, t_native_weft=t0))
+        ss.append(r["warp"]["spread_factor"])
+        areas.append(r["open_area"])
+        holes.append(r["hole_w"])
+    assert all(x == pytest.approx(2000 * rho * phi * (1 + c) * t0 / faw) for x in ss)
+    assert all(a == pytest.approx(areas[0]) for a in areas)
+    assert holes == sorted(holes)  # buchi più grandi con i filati più grossi
+
+
+def test_buchi_passanti_e_area_aperta():
+    r = C.compute(base_input(vf_yarn=0.8, t_native_warp=0.15, t_native_weft=0.15))
+    o, t = r["warp"], r["weft"]
+    assert r["open_area"] == pytest.approx((1 - o["cover"]) * (1 - t["cover"]))
+    assert r["open_area"] == pytest.approx(1 - r["cover_fabric"])
+    assert r["holes_cm2"] == pytest.approx(r["n_warp"] * r["n_weft"])
+    # area aperta = buchi/cm² × area del buco [mm²] / 100 mm² per cm²
+    assert r["open_area"] == pytest.approx(r["holes_cm2"] * r["hole_w"] * r["hole_h"] / 100)
+
+
+def test_nessun_buco_se_una_direzione_e_chiusa():
+    # Trama sovrapposta (tow più largo del passo): niente buchi passanti,
+    # anche se tra gli orditi resta un gap (canale di resina).
+    r = C.compute(base_input(vf_yarn=0.8, t_native_warp=0.20, t_native_weft=0.05))
+    assert r["warp"]["gap"] > 0 and r["weft"]["gap"] < 0
+    assert r["holes_cm2"] == 0 and r["open_area"] == 0
+
+
+def test_la_misura_vince_sulla_stima():
+    r = C.compute(base_input(t_native_warp=0.15, w_meas_warp=2.0))
+    assert r["warp"]["w_tow"] == 2.0 and r["warp"]["w_source"] == "measured"
+
+
 def test_armatura_non_valida():
     assert "Armatura" in C.compute(base_input(weave="raso9"))["error"]
 
@@ -181,7 +241,7 @@ def test_direzione_assente():
 
 
 @pytest.mark.parametrize("over, frammento", [
-    ({"vf_yarn": 0.95}, "Vf nel filo"),
+    ({"vf_yarn": 0.95}, "impacchettamento"),
     ({"vf_lam": 0}, "laminato"),
     ({"faw_target": 0}, "grammatura"),
     ({"crimp_warp": -0.01}, "crimp"),
@@ -214,8 +274,10 @@ def random_inputs(n=400, seed=42):
             vf_lam=rng.uniform(0.4, 0.7),
             shape=rng.choice(["rect", "ellipse", "lens"]),
             weave=rng.choice(C.WEAVE_ORDER),
-            w_meas_warp=rng.choice([None, rng.uniform(0.3, 15)]),
-            w_meas_weft=rng.choice([None, rng.uniform(0.3, 15)]),
+            w_meas_warp=rng.choice([None, None, rng.uniform(0.3, 15)]),
+            w_meas_weft=rng.choice([None, None, rng.uniform(0.3, 15)]),
+            t_native_warp=rng.choice([None, rng.uniform(0.03, 0.4)]),
+            t_native_weft=rng.choice([None, rng.uniform(0.03, 0.4)]),
         ))
     return out
 

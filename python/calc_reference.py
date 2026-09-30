@@ -142,6 +142,14 @@ def equivalent_diameter_um(tex: float, filaments: int, rho: float) -> float:
     return math.sqrt(4.0 * area_per_filament / math.pi) * 1000.0
 
 
+def native_width(tex: float, rho: float, phi: float, shape_k: float, t_native: float) -> float:
+    """Larghezza del tow senza spreading [mm]: w₀ = A_f / (φ · k · t₀).
+
+    Caso generale A_tow = k·w·t, con A_tow = A_f/φ. Dipende dal PRODOTTO φ·t₀.
+    """
+    return fiber_area(tex, rho) / (phi * shape_k * t_native)
+
+
 def faw_from_n(n: float, tex: float, crimp: float) -> float:
     """FAW_dir = n · T · (1 + c) / 10  [g/m²]."""
     return n * tex * (1.0 + crimp) / 10.0
@@ -162,7 +170,8 @@ def implied_crimp(faw_meas, n_warp, tex_warp, n_weft, tex_weft) -> float | None:
     return 10.0 * faw_meas / base - 1.0 if base > 0 else None
 
 
-def yarn_geometry(tex, rho, n, vf_yarn, shape_k, w_meas=None) -> dict | None:
+def yarn_geometry(tex, rho, n, vf_yarn, shape_k, w_meas=None, t_native=None) -> dict | None:
+    """Geometria di un sistema di fili; la larghezza nativa può essere misurata o stimata."""
     if not n > 0:
         return None
     af = fiber_area(tex, rho)
@@ -177,20 +186,29 @@ def yarn_geometry(tex, rho, n, vf_yarn, shape_k, w_meas=None) -> dict | None:
         "w_req": p,
         "t_req": t_req,
         "ar_req": p / t_req,
-        "w_meas": None,
+        "w_tow": None,
+        "w_source": None,
         "cover": None,
         "gap": None,
-        "t_meas": None,
-        "ar_meas": None,
+        "t_tow": None,
+        "ar_tow": None,
         "spread_factor": None,
     }
+    # Una misura vince sempre sulla stima.
+    w_tow = None
     if w_meas is not None and w_meas > 0:
-        g["w_meas"] = w_meas
-        g["cover"] = w_meas / p
-        g["gap"] = p - w_meas
-        g["t_meas"] = ay / (shape_k * w_meas)
-        g["ar_meas"] = w_meas / g["t_meas"]
-        g["spread_factor"] = p / w_meas
+        w_tow = w_meas
+        g["w_source"] = "measured"
+    elif t_native is not None and t_native > 0:
+        w_tow = ay / (shape_k * t_native)
+        g["w_source"] = "estimated"
+    if w_tow is not None:
+        g["w_tow"] = w_tow
+        g["cover"] = w_tow / p
+        g["gap"] = p - w_tow
+        g["t_tow"] = ay / (shape_k * w_tow)
+        g["ar_tow"] = w_tow / g["t_tow"]
+        g["spread_factor"] = p / w_tow
     return g
 
 
@@ -223,7 +241,7 @@ def validate(inp: dict) -> str | None:
         if not _is_pos(y.get("rho")):
             return f"Densità della fibra di {label} mancante."
     if not _is_pos(inp.get("vf_yarn")) or inp["vf_yarn"] > VF_MAX_HEX:
-        return "Il Vf nel filo deve stare tra 0 e 0,907 (limite dell'impaccamento esagonale)."
+        return "Il fattore di impacchettamento φ deve stare tra 0 e 90,7 % (limite dell'impaccamento esagonale)."
     if not _is_pos(inp.get("vf_lam")) or inp["vf_lam"] > VF_MAX_HEX:
         return "Il Vf del laminato deve stare tra 0 e 0,907."
     if not _is_non_neg(inp.get("crimp_warp")) or not _is_non_neg(inp.get("crimp_weft")):
@@ -284,16 +302,21 @@ def compute(inp: dict) -> dict:
 
     faw = faw_warp + faw_weft
     warp = yarn_geometry(inp["warp"]["tex"], inp["warp"]["rho"], n_warp,
-                         inp["vf_yarn"], k, inp.get("w_meas_warp"))
+                         inp["vf_yarn"], k, inp.get("w_meas_warp"), inp.get("t_native_warp"))
     weft = yarn_geometry(inp["weft"]["tex"], inp["weft"]["rho"], n_weft,
-                         inp["vf_yarn"], k, inp.get("w_meas_weft"))
+                         inp["vf_yarn"], k, inp.get("w_meas_weft"), inp.get("t_native_weft"))
 
     st = weave_stats(weave_matrix(inp["weave"]))
     _add_weave_geometry(warp, weft, st)
 
-    cover = None
+    cover = open_area = holes = hole_w = hole_h = None
     if warp and weft and warp["cover"] is not None and weft["cover"] is not None:
         cover = fabric_cover(warp["cover"], weft["cover"])
+        # Buchi passanti: dove un gap tra orditi incrocia un gap tra trame.
+        hole_w = max(warp["gap"], 0.0)
+        hole_h = max(weft["gap"], 0.0)
+        open_area = (hole_w / warp["pitch"]) * (hole_h / weft["pitch"])
+        holes = n_warp * n_weft if hole_w > 0 and hole_h > 0 else 0
 
     ply = (faw_warp / inp["warp"]["rho"] + faw_weft / inp["weft"]["rho"]) / (1000.0 * inp["vf_lam"])
 
@@ -318,6 +341,10 @@ def compute(inp: dict) -> dict:
         "warp": warp,
         "weft": weft,
         "cover_fabric": cover,
+        "open_area": open_area,
+        "holes_cm2": holes,
+        "hole_w": hole_w,
+        "hole_h": hole_h,
         "weave": {"id": inp["weave"], **st},
         "bindings_cm2": bindings,
         "ply_thickness": ply,
@@ -336,6 +363,7 @@ def base_input(**over) -> dict:
         "crimp_warp": 0.0, "crimp_weft": 0.0, "tex_tol": 0.03,
         "vf_yarn": 0.70, "vf_lam": 0.55, "shape": "rect", "weave": "satin5",
         "w_meas_warp": None, "w_meas_weft": None,
+        "t_native_warp": None, "t_native_weft": None,
     }
     inp.update(over)
     return inp
